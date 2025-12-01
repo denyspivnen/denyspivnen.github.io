@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Dashboard Prototype</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f0f12;
+      color: #fff;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 250px;
+      background: #141418;
+      padding: 30px 20px;
+      box-sizing: border-box;
+      border-right: 1px solid #2a2a2d;
+    }
+    .sidebar h2 { margin-bottom: 40px; font-size: 22px; }
+    .sidebar a {
+      display: block;
+      padding: 12px 10px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      color: #cfcfcf;
+      text-decoration: none;
+      transition: 0.2s;
+      cursor: pointer;
+    }
+    .sidebar a:hover { background: #1e1e24; color: #fff; }
+    .main { flex: 1; overflow-y: auto; padding: 30px 40px; box-sizing: border-box; }
+    .title { font-size: 28px; margin-bottom: 10px; }
+    .subtitle { font-size: 16px; color: #aaa; margin-bottom: 30px; }
+    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 40px; }
+    .card { background: #141418; padding: 20px; border-radius: 16px; border: 1px solid #2a2a2d; }
+    .card .value { font-size: 28px; margin-bottom: 5px; }
+    .quick-actions { margin-top: 50px; }
+    .quick-grid { display: flex; gap: 20px; }
+    .quick-item { background:#1a1a20; border:1px solid #2a2a2d; padding:28px; border-radius:20px; flex:1; transition:0.25s; cursor:pointer; font-size:20px; text-align:center; font-weight:600; box-shadow:0 0 0 rgba(0,0,0,0); }
+    .quick-item:hover { background:#2a2a34; transform:translateY(-3px); box-shadow:0 6px 18px rgba(0,0,0,0.35); }
+    .quick-item:hover { background: #23232b; }
+    textarea { font-family: inherit; }
+    button { font-family: inherit; }
+    /* responsive */
+    @media (max-width: 900px) {
+      .cards { grid-template-columns: repeat(2, 1fr); }
+      .sidebar { display: none; }
+      body { height: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>AI Dashboard</h2>
+    <a id="link-dashboard">Dashboard</a>
+    <a id="link-text">AI Text Generator</a>
+    <a id="link-ideas">AI Idea Generator</a>
+    <a id="link-history">History</a>
+    <a id="link-prompt">Prompt Builder</a>
+    <a id="link-settings">Settings</a>
+  </div>
+
+  <div class="main" id="main">
+    <div class="title">Welcome back, Creator!</div>
+    <div class="subtitle">Here’s your AI activity overview</div>
+
+    <div class="cards">
+      <div class="card"><div class="value">243</div>Total Generations</div>
+      <div class="card"><div class="value">3</div>Active Tools</div>
+      <div class="card"><div class="value">92%</div>Avg. Response Quality</div>
+      <div class="card"><div class="value">2h ago</div>Last Activity</div>
+    </div>
+
+    <div class="quick-actions">
+      <h2>Quick Actions</h2>
+          <p style='color:#888;margin-top:-10px;margin-bottom:20px;'>Your most used AI tools, one tap away</p>
+      <div class="quick-grid">
+        <div class="quick-item" id="quick-create">Create Text</div>
+        <div class="quick-item" id="quick-ideas">Generate Ideas</div>
+        <div class="quick-item" id="quick-prompt">Build Prompt</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // All JS inside single DOMContentLoaded to avoid duplicate listeners and bracket issues
+  document.addEventListener('DOMContentLoaded', () => {
+    const main = document.getElementById('main');
+
+    // Utility: save history to localStorage (newest first)
+    function saveToHistory(entry) {
+      try {
+        const data = JSON.parse(localStorage.getItem('historyData') || '[]');
+        data.unshift(entry);
+        if (data.length > 200) data.length = 200;
+        localStorage.setItem('historyData', JSON.stringify(data));
+      } catch (e) {
+        console.error('saveToHistory failed', e);
+      }
+    }
+
+    // Quick item click feedback
+    function attachQuickItems() {
+      document.querySelectorAll('.quick-item').forEach(btn => {
+        btn.style.cursor = 'pointer';
+        btn.addEventListener('click', () => {
+          // map quick buttons to actions
+          if (btn.id === 'quick-create') renderTextGenerator();
+          else if (btn.id === 'quick-ideas') renderIdeaGenerator();
+          else if (btn.id === 'quick-prompt') renderPromptBuilder();
+        });
+      });
+    }
+
+    // Render dashboard
+    function renderDashboard() {
+      main.innerHTML = `
+        <div class="title">AI Dashboard Overview</div>
+        <div class="subtitle">Your personal AI workspace with smart tools for content, business and creativity</div>
+
+        <div class="quick-actions" style="margin-top:10px; text-align:center;">
+          <h2>Quick Actions</h2>
+          <p style='color:#888;margin-top:-10px;margin-bottom:20px;'>Your most used AI tools, one tap away</p>
+          <div class="quick-grid" style="justify-content:center;">
+            <div class="quick-item" style="max-width:260px;" id="quick-create">Create Text</div>
+            <div class="quick-item" style="max-width:260px;" id="quick-ideas">Generate Ideas</div>
+            <div class="quick-item" style="max-width:260px;" id="quick-prompt">Build Prompt</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:50px;">
+          <div class="card">
+            <div class="value">${JSON.parse(localStorage.getItem('historyData')||'[]').length}</div>
+            Total Generations
+          </div>
+          <div class="card">
+            <div class="value">4</div>
+            Active AI Tools
+          </div>
+          <div class="card">
+            <div class="value">100%</div>
+            Local Stability
+          </div>
+          <div class="card">
+            <div class="value">Ready</div>
+            System Status
+          </div>
+        </div>
+
+        <div style="background:#141418;border:1px solid #2a2a2d;border-radius:16px;padding:25px;margin-top:40px;">
+          <h2 style="margin-top:0;margin-bottom:10px;">What this AI can do</h2>
+          <ul style="color:#ccc;line-height:1.7;padding-left:20px;font-size:15px;">
+            <li><b>AI Text Generator</b> — creates long‑form (1000+ chars) clean English texts on any topic.</li>
+            <li><b>AI Idea Generator</b> — business ideas, marketing concepts, content plans, product names.</li>
+            <li><b>Prompt Builder</b> — builds professional prompts for social media, business, marketing & creativity.</li>
+            <li><b>History System</b> — auto‑saves all outputs with filtering, search and full‑view mode.</li>
+            <li><b>User Profile</b> — saves your name, brand and email for personalization.</li>
+            <li><b>Offline Engine</b> — works fully without API keys. Stable, instant and private.</li>
+          </ul>
+        </div>
+      `;
+      attachQuickItems();
+    }
+
+    // --- Prompt Builder ---
+    function renderPromptBuilder() {
+      main.innerHTML = `
+        <div class="title">Prompt Builder</div>
+        <div class="subtitle">Create ready‑to‑use professional prompts</div>
+
+        <div style="display:flex;gap:12px;margin-top:15px;">
+          <select id="promptCategory" style="padding:12px;border-radius:10px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+            <option value="social">Social Media</option>
+            <option value="business">Business</option>
+            <option value="marketing">Marketing</option>
+            <option value="creative">Creative</option>
+            <option value="personal">Self‑Growth</option>
+          </select>
+          <input id="promptTopic" placeholder="Your topic (e.g. fitness brand)" style="flex:1;padding:12px;border-radius:10px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+        </div>
+
+        <div style="margin-top:15px;">
+          <button id="buildPrompt" style="padding:12px 18px;background:#4a4aff;border:none;border-radius:10px;color:white;cursor:pointer;">Generate Prompt</button>
+          <button id="copyPrompt" style="margin-left:10px;padding:12px 18px;background:#3a3a3a;border:none;border-radius:10px;color:white;cursor:pointer;">Copy</button>
+        </div>
+
+        <div id="promptOut" style="margin-top:20px;padding:18px;background:#141418;border:1px solid #2a2a2d;border-radius:12px;min-height:120px;color:#ccc;white-space:pre-wrap;"></div>
+      `;
+
+      const btn = document.getElementById('buildPrompt');
+      const out = document.getElementById('promptOut');
+      const copy = document.getElementById('copyPrompt');
+
+      const banks = {
+        social: list => `Create a high‑engagement social media content strategy about "${list}". Include hooks, captions, posting schedule, visual style and CTA variations. Output must be structured and ready to publish.`,
+        business: list => `Generate a complete business development prompt focused on "${list}". Include target audience, USP, positioning, scaling model, risk analysis and execution roadmap.`,
+        marketing: list => `Build a marketing prompt for "${list}". Include funnels, ad ideas, messaging angles, pain points, objections, KPIs and content pillars.`,
+        creative: list => `Create a creative brainstorming prompt on "${list}". Include storytelling, tone, world‑building, emotional impact, unique angles and creative frameworks.`,
+        personal: list => `Write a self‑growth coaching prompt for "${list}". Include mindset shifts, daily actions, habits, reflection questions and long‑term growth plan.`
+      };
+
+      btn.addEventListener('click', () => {
+        const topic = document.getElementById('promptTopic').value.trim();
+        const cat = document.getElementById('promptCategory').value;
+        if (!topic) { out.textContent = 'Enter a topic first.'; return; }
+        out.textContent = banks[cat](topic);
+      });
+
+      copy.addEventListener('click', () => {
+        if (!out.textContent) return;
+        navigator.clipboard.writeText(out.textContent);
+        copy.textContent = 'Copied!';
+        setTimeout(()=>copy.textContent='Copy',1000);
+      });
+    }
+
+    // Text generator (offline)
+    function renderTextGenerator() {
+      main.innerHTML = `
+        <div class="title">AI Text Generator</div>
+        <div class="subtitle">Enter a topic and generate ~1000 characters (English)</div>
+        <textarea id="prompt" style="width:100%;height:150px;border-radius:12px;padding:15px;background:#1a1a20;border:1px solid #2a2a2d;color:white;font-size:16px;resize:none;"></textarea>
+        <div style="margin-top:12px;">
+          <button id="generate" style="padding:10px 16px;background:#4a4aff;border:none;border-radius:8px;color:white;cursor:pointer;">Generate</button>
+          <button id="copy" style="margin-left:8px;padding:10px 16px;background:#3a3a3a;border:none;border-radius:8px;color:white;cursor:pointer;">Copy</button>
+        </div>
+        <div id="loader" style="display:none;margin-top:12px;color:#888;">Generating…</div>
+        <div id="output" style="margin-top:16px;padding:16px;background:#141418;border:1px solid #2a2a2d;border-radius:12px;min-height:120px;color:#ccc;white-space:pre-wrap;"></div>
+        <div id="charcount" style="margin-top:10px;color:#777;">Characters: 0</div>
+        <h3 style="margin-top:20px;">Recent</h3>
+        <ul id="history" style="color:#aaa;padding-left:20px;max-height:160px;overflow:auto;"></ul>
+      `;
+
+      const generateBtn = document.getElementById('generate');
+      const copyBtn = document.getElementById('copy');
+      const outEl = document.getElementById('output');
+      const loaderEl = document.getElementById('loader');
+      const counterEl = document.getElementById('charcount');
+      const historyEl = document.getElementById('history');
+
+      function generateLongText(topic) {
+        const base = [
+          `Here is an inspiring and practical explanation about "${topic}".`,
+          `This topic can influence your long-term success, mindset, and motivation.`,
+          `To approach ${topic}, break your goals into small steps you can apply every day.`,
+          `Consistency creates growth, so stay focused on making steady improvements.`,
+          `Reflect on what inspires you and what supports your progress.`,
+          `Experiment, explore new ideas, and allow creativity to expand.`,
+          `Your mindset shapes your results — stay positive and confident.`,
+          `Analyze, learn, grow, and stay committed to the process.`,
+          `Daily action builds momentum and leads to meaningful progress.`,
+          `Your work on "${topic}" will guide you toward real results over time.`
+        ];
+        let full = base.join(' ');
+        while (full.length < 1000) full += ' ' + base[Math.floor(Math.random() * base.length)];
+        return full.slice(0, 1100);
+      }
+
+      generateBtn.addEventListener('click', () => {
+        const prompt = document.getElementById('prompt').value.trim();
+        if (!prompt) { outEl.textContent = 'Please enter a topic to generate.'; return; }
+        loaderEl.style.display = 'block';
+        outEl.textContent = '';
+        setTimeout(() => {
+          loaderEl.style.display = 'none';
+          const text = generateLongText(prompt);
+          outEl.textContent = text;
+          counterEl.textContent = 'Characters: ' + text.length;
+          const entry = { id: Date.now().toString(), type: 'text', prompt, result: text, timestamp: Date.now() };
+          const li = document.createElement('li'); li.textContent = prompt; historyEl.appendChild(li);
+          saveToHistory(entry);
+        }, 700);
+      });
+
+      copyBtn.addEventListener('click', () => {
+        if (!outEl.textContent) return;
+        navigator.clipboard.writeText(outEl.textContent).then(() => {
+          copyBtn.textContent = 'Copied!'; setTimeout(() => copyBtn.textContent = 'Copy', 1000);
+        });
+      });
+    }
+
+    // Idea generator
+    function renderIdeaGenerator() {
+      main.innerHTML = `
+        <div class="title">AI Idea Generator</div>
+        <div class="subtitle">Enter a topic and choose a mode</div>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:8px;">
+          <select id="ideaFilter" style="padding:10px;border-radius:8px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+            <option value="business">Business Ideas</option>
+            <option value="content">Content Ideas</option>
+            <option value="marketing">Marketing Ideas</option>
+            <option value="selfgrowth">Personal Growth Ideas</option>
+            <option value="competitors">Competitive Analysis</option>
+            <option value="brandnames">Brand Name Generator</option>
+            <option value="descriptions">Product Descriptions</option>
+          </select>
+          <input id="ideaPrompt" placeholder="Topic (e.g. instagram content)" style="flex:1;padding:12px;border-radius:8px;background:#1a1a20;border:1px solid #2a2a2d;color:white;" />
+        </div>
+        <div style="margin-top:12px;"><button id="genIdeas" style="padding:10px 16px;background:#4a4aff;border:none;border-radius:8px;color:white;cursor:pointer;">Generate</button><button id="copyIdeas" style="margin-left:8px;padding:10px 16px;background:#3a3a3a;border:none;border-radius:8px;color:white;cursor:pointer;">Copy</button></div>
+        <div id="ideaLoader" style="display:none;margin-top:12px;color:#888;">Generating…</div>
+        <ul id="ideaList" style="margin-top:12px;color:#ccc;line-height:1.6;padding-left:20px;"></ul>
+        <h3 style="margin-top:16px;">Recent</h3>
+        <ul id="ideaHistory" style="color:#aaa;padding-left:20px;max-height:160px;overflow:auto;"></ul>
+      `;
+
+      const genBtn = document.getElementById('genIdeas');
+      const copyBtn = document.getElementById('copyIdeas');
+      const ideaLoader = document.getElementById('ideaLoader');
+      const ideaList = document.getElementById('ideaList');
+      const ideaHistory = document.getElementById('ideaHistory');
+
+      function makeIdeas(topic, type) {
+        const ideaBanks = {
+          business: [
+            `Create a subscription service based on ${topic}.`,
+            `Build an online mentoring platform around ${topic}.`,
+            `Develop a scalable digital product connected to ${topic}.`,
+            `Start a consulting service specializing in ${topic}.`,
+            `Launch a marketplace for ${topic}.`,
+            `Offer a certification program for ${topic}.`,
+            `Create a white-label solution centered on ${topic}.`,
+            `Package ${topic} as a B2B offering.`
+          ],
+          content: [
+            `Create a viral TikTok format about ${topic}.`,
+            `Build a weekly newsletter covering ${topic}.`,
+            `Start a storytelling series related to ${topic}.`,
+            `Post daily mini-lessons about ${topic}.`,
+            `Collaborate with influencers who talk about ${topic}.`,
+            `Create a podcast interviewing experts on ${topic}.`,
+            `Design a visual Instagram series focused on ${topic}.`,
+            `Host live Q&A sessions around ${topic}.`
+          ],
+          marketing: [
+            `Create a funnel strategy connected to ${topic}.`,
+            `Build a lead magnet focused on ${topic}.`,
+            `Develop UGC concepts around ${topic}.`,
+            `Launch an ad campaign themed with ${topic}.`,
+            `Generate SEO keywords linked to ${topic}.`,
+            `Use partnerships to scale ${topic} reach.`,
+            `Create a referral program around ${topic}.`
+          ],
+          selfgrowth: [
+            `Create a habit system built on ${topic}.`,
+            `Build a mindset transformation routine using ${topic}.`,
+            `Develop a morning ritual connected to ${topic}.`,
+            `Use ${topic} to improve emotional discipline.`,
+            `Turn ${topic} into a 30-day challenge.`,
+            `Create reflection prompts focused on ${topic}.`
+          ],
+          competitors: [
+            `Identify top competitors in ${topic} and list their strengths.`,
+            `Analyze market gaps related to ${topic}.`,
+            `Find weaknesses in competitors' ${topic} strategy.`,
+            `Research pricing models for ${topic}.`,
+            `Identify unique opportunities around ${topic}.`
+          ],
+          brandnames: [
+            `${topic} Lab`, `${topic} Vision`, `${topic} Sphere`, `${topic} Forge`, `${topic} Studio`, `${topic} Co`
+          ],
+          descriptions: [
+            `A premium solution designed to elevate your ${topic} experience.`,
+            `A modern product that transforms how you approach ${topic}.`,
+            `High-quality, user-friendly and optimized for ${topic}.`,
+            `Innovative design created specifically for ${topic}.`,
+            `A reliable choice for people who value ${topic}.`
+          ]
+        };
+        return ideaBanks[type] || [`No ideas for ${topic}`];
+      }
+
+      genBtn.addEventListener('click', () => {
+        const topic = document.getElementById('ideaPrompt').value.trim();
+        const type = document.getElementById('ideaFilter').value;
+        if (!topic) { ideaList.innerHTML = '<li>Please enter a topic.</li>'; return; }
+        ideaList.innerHTML = '';
+        ideaLoader.style.display = 'block';
+        setTimeout(() => {
+          ideaLoader.style.display = 'none';
+          const ideas = makeIdeas(topic, type);
+          ideaList.innerHTML = ideas.map((p, i) => `<li><b>${i+1}.</b> ${p}</li>`).join('');
+          const result = ideas.join('\n');
+          const entryType = (type === 'brandnames') ? 'brand' : (type === 'descriptions') ? 'description' : (type === 'competitors') ? 'competitors' : 'ideas';
+          const entry = { id: Date.now().toString(), type: entryType, prompt: topic, result, timestamp: Date.now() };
+          const li = document.createElement('li'); li.textContent = `${topic} — [${type}]`; ideaHistory.appendChild(li);
+          saveToHistory(entry);
+        }, 700);
+      });
+
+      copyBtn.addEventListener('click', () => {
+        if (!ideaList.textContent.trim()) return;
+        navigator.clipboard.writeText(ideaList.textContent.trim()).then(() => {
+          copyBtn.textContent = 'Copied!'; setTimeout(() => copyBtn.textContent = 'Copy', 1000);
+        });
+      });
+    }
+
+    // History renderer (cards, view, copy, clear)
+    function renderHistory() {
+      main.innerHTML = `
+        <div class="title">History</div>
+        <div id="historyControls" style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+          <select id="filterHistory" style="padding:8px;border-radius:8px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+            <option value="all">All</option>
+            <option value="text">Text</option>
+            <option value="ideas">Ideas</option>
+            <option value="brand">Brand Names</option>
+            <option value="description">Product Descriptions</option>
+            <option value="competitors">Competitor Analysis</option>
+          </select>
+          <input id="searchHistory" placeholder="Search..." style="flex:1;padding:8px;border-radius:8px;background:#1a1a20;border:1px solid #2a2a2d;color:white;" />
+          <button id="clearHistory" style="padding:8px 12px;background:#922;border:none;border-radius:8px;color:white;cursor:pointer;">Clear History</button>
+        </div>
+        <div id="historyContainer" style="display:flex;flex-direction:column;gap:16px;margin-top:16px;"></div>
+      `;
+
+      const container = document.getElementById('historyContainer');
+      const filterEl = document.getElementById('filterHistory');
+      const searchEl = document.getElementById('searchHistory');
+      const clearBtn = document.getElementById('clearHistory');
+
+      function buildList() {
+        const data = JSON.parse(localStorage.getItem('historyData') || '[]');
+        const filter = filterEl.value;
+        const q = searchEl.value.trim().toLowerCase();
+        container.innerHTML = '';
+        const filtered = data.filter(item => (filter === 'all' || item.type === filter) && (q === '' || (item.prompt + ' ' + (item.result||'')).toLowerCase().includes(q)));
+        if (!filtered.length) { container.innerHTML = '<div style="color:#777;">No history found.</div>'; return; }
+
+        filtered.forEach(item => {
+          const card = document.createElement('div');
+          card.style = 'background:#141418;padding:16px;border-radius:12px;border:1px solid #2a2a2d;';
+          const preview = (item.result || '').slice(0, 80).replace(/\n/g, ' ');
+          card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div><b>[${item.type.toUpperCase()}]</b> ${item.prompt}</div>
+              <div style="color:#888;font-size:13px;">${new Date(item.timestamp).toLocaleString()}</div>
+            </div>
+            <div style="color:#888;margin-top:8px;">${preview}...</div>
+            <div style="margin-top:10px;display:flex;gap:8px;">
+              <button data-id="${item.id}" class="viewFull" style="padding:8px 12px;background:#4a4aff;border:none;border-radius:8px;color:white;cursor:pointer;">View</button>
+              <button data-id="${item.id}" class="copyItem" style="padding:8px 12px;background:#3a3a3a;border:none;border-radius:8px;color:white;cursor:pointer;">Copy</button>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+
+        // listeners
+        container.querySelectorAll('.viewFull').forEach(btn => btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.dataset.id;
+          const data = JSON.parse(localStorage.getItem('historyData') || '[]');
+          const item = data.find(x => x.id === id);
+          if (!item) return;
+          main.innerHTML = `
+            <div class="title">Full Result</div>
+            <div class="subtitle">Type: ${item.type}</div>
+            <div style="margin-top:20px;color:#ccc;white-space:pre-wrap;">${item.result}</div>
+            <div style="margin-top:20px;display:flex;gap:8px;"><button id="copyFull" style="padding:10px 18px;background:#3a3a3a;border:none;border-radius:10px;color:white;cursor:pointer;">Copy</button><button id="backHist" style="padding:10px 18px;background:#777;border:none;border-radius:10px;color:white;cursor:pointer;">Back</button></div>
+          `;
+          document.getElementById('backHist').addEventListener('click', renderHistory);
+    document.getElementById('link-settings').addEventListener('click', renderSettings);
+          document.getElementById('copyFull').addEventListener('click', () => { navigator.clipboard.writeText(item.result || item.prompt || ''); });
+        }));
+
+        container.querySelectorAll('.copyItem').forEach(btn => btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.dataset.id;
+          const data = JSON.parse(localStorage.getItem('historyData') || '[]');
+          const item = data.find(x => x.id === id);
+          if (!item) return;
+          navigator.clipboard.writeText(item.result || item.prompt || '');
+          btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1000);
+        }));
+      }
+
+      filterEl.addEventListener('change', buildList);
+      searchEl.addEventListener('input', buildList);
+      clearBtn.addEventListener('click', () => { localStorage.removeItem('historyData'); buildList(); });
+
+      buildList();
+    }
+
+    // --- Settings ---
+    function renderSettings() {
+      main.innerHTML = `
+        <div class="title">Settings</div>
+        <div class="subtitle">Customize your AI Dashboard</div>
+        <div style="margin-top:20px;display:flex;flex-direction:column;gap:20px;max-width:500px;">
+
+          <div style="background:#141418;padding:20px;border-radius:12px;border:1px solid #2a2a2d;">
+            <h3>User Profile</h3>
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+              <input id="userName" placeholder="Your Name" style="padding:10px;border-radius:8px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+              <input id="userEmail" placeholder="Email" style="padding:10px;border-radius:8px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+              <input id="userBrand" placeholder="Brand / Project Name" style="padding:10px;border-radius:8px;background:#1a1a20;color:white;border:1px solid #2a2a2d;">
+              <button id="saveUser" style="padding:10px 16px;background:#4a4aff;border:none;border-radius:8px;color:white;cursor:pointer;">Save Profile</button>
+            </div>
+          </div>
+
+          <div style="background:#141418;padding:20px;border-radius:12px;border:1px solid #2a2a2d;">
+            <h3>Theme</h3>
+            <div style="margin-top:10px;"><button id="theme-dark" style="padding:10px 16px;background:#4a4aff;border:none;border-radius:8px;color:white;cursor:pointer;">Dark Mode</button></div>
+          </div>
+
+          <div style="background:#141418;padding:20px;border-radius:12px;border:1px solid #2a2a2d;">
+            <h3>History Settings</h3>
+            <div style="margin-top:10px;display:flex;gap:10px;align-items:center;"><button id="clearHistSettings" style="padding:10px 16px;background:#922;border:none;border-radius:8px;color:white;cursor:pointer;">Clear All History</button></div>
+          </div>
+
+        </div>
+      `;
+
+      // load stored user data
+      const profile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+      document.getElementById('userName').value = profile.name || '';
+      document.getElementById('userEmail').value = profile.email || '';
+      document.getElementById('userBrand').value = profile.brand || '';
+
+      document.getElementById('saveUser').addEventListener('click', () => {
+        const data = {
+          name: document.getElementById('userName').value.trim(),
+          email: document.getElementById('userEmail').value.trim(),
+          brand: document.getElementById('userBrand').value.trim()
+        };
+        localStorage.setItem('userProfile', JSON.stringify(data));
+        alert('Profile saved!');
+      });
+
+      document.getElementById('clearHistSettings').addEventListener('click', () => {
+        localStorage.removeItem('historyData');
+        alert('History cleared!');
+      });
+    }
+
+    // attach nav
+    document.getElementById('link-prompt')?.addEventListener('click', renderPromptBuilder);
+    document.getElementById('link-dashboard').addEventListener('click', renderDashboard);
+    document.getElementById('link-text').addEventListener('click', renderTextGenerator);
+    document.getElementById('link-ideas').addEventListener('click', renderIdeaGenerator);
+    document.getElementById('link-history').addEventListener('click', renderHistory);
+
+    // quick access
+    document.getElementById('quick-create').addEventListener('click', renderTextGenerator);
+    document.getElementById('quick-ideas').addEventListener('click', renderIdeaGenerator);
+
+    // init
+    renderDashboard();
+  });
+  </script>
+</body>
+</html>
